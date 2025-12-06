@@ -14,7 +14,7 @@ conda activate robosuite
 ### 2. Install dependencies
 
 ```bash
-pip install robosuite numpy opencv-python stable-baselines3 gymnasium h5py
+pip install robosuite numpy opencv-python stable-baselines3 gymnasium h5py tqdm rich
 ```
 
 ## Project Structure
@@ -25,6 +25,7 @@ pip install robosuite numpy opencv-python stable-baselines3 gymnasium h5py
 ├── train_policy.py         # PPO training script
 ├── trained_models/         # Saved policy checkpoints
 ├── camera_images/          # Captured camera frames
+├── training_losses.png     # Loss plot from training
 └── README.md
 ```
 
@@ -43,19 +44,46 @@ Opens a GUI showing the Panda robot with random actions. Captures camera images 
 ### Train a policy
 
 ```bash
-python train_policy.py
+python train_policy.py --gpu --timesteps 500000
 ```
 
-Trains a PPO policy on the Lift task (pick up a cube). Training parameters:
-- `total_timesteps`: Total environment steps (default: 50,000)
-- `n_steps`: Steps before each policy update (default: 256)
-- `n_epochs`: Passes through collected data per update (default: 5)
+**Command line options:**
+| Option | Description |
+|--------|-------------|
+| `--gpu` | Use GPU for training (default) |
+| `--cpu` | Use CPU for training |
+| `--timesteps N` | Total training timesteps (default: 50,000) |
+| `--test` | Test a trained policy |
+
+**Examples:**
+```bash
+# Train on GPU with 500k steps
+python train_policy.py --gpu --timesteps 500000
+
+# Train on CPU with default steps
+python train_policy.py --cpu
+
+# Quick test run
+python train_policy.py --timesteps 10000
+```
+
+**Training parameters (in code):**
+- `n_steps`: Steps before each policy update (default: 512)
+- `n_epochs`: Passes through collected data per update (default: 10)
+- `batch_size`: Batch size for updates (default: 64)
+- `learning_rate`: Learning rate (default: 3e-4)
 - `horizon`: Max steps per episode (default: 100)
+
+**Live monitoring:**
+- Progress bar shows training progress
+- Live plot window displays policy loss, value loss, and entropy loss
+- Action means/stds printed every 512 steps
+- Loss plot saved to `training_losses.png` when training ends
 
 ### Test trained policy
 
 ```bash
-python train_policy.py test
+python train_policy.py --test
 ```
 
 Runs 5 episodes with the trained policy and displays results.
