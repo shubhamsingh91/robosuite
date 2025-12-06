@@ -10,8 +10,41 @@ import numpy as np
 import robosuite as suite
 from robosuite.wrappers import GymWrapper
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback
+from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, BaseCallback
+import torch
 import os
+
+
+class PolicyStatsCallback(BaseCallback):
+    """Callback to print policy mean and std during training."""
+
+    def __init__(self, print_freq=512, verbose=0):
+        super().__init__(verbose)
+        self.print_freq = print_freq
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.print_freq == 0:
+            # Get the policy network
+            policy = self.model.policy
+
+            # Get current observation
+            obs = self.locals.get("obs_tensor")
+            if obs is None:
+                obs = torch.tensor(self.training_env.buf_obs[None]).float()
+
+            # Get action distribution from policy
+            with torch.no_grad():
+                obs_tensor = torch.as_tensor(self.locals["new_obs"]).float().to(self.model.device)
+                distribution = policy.get_distribution(obs_tensor)
+                mean = distribution.distribution.mean.cpu().numpy()
+                std = distribution.distribution.stddev.cpu().numpy()
+
+            # Print stats
+            print(f"\n--- Step {self.num_timesteps} ---")
+            print(f"Action means: [{', '.join(f'{m:.3f}' for m in mean[0])}]")
+            print(f"Action stds:  [{', '.join(f'{s:.3f}' for s in std[0])}]")
+
+        return True
 
 
 class RobosuiteGymEnv(gym.Env):
@@ -27,7 +60,7 @@ class RobosuiteGymEnv(gym.Env):
         self.env = suite.make(
             env_name="Lift",
             robots="Panda",
-            has_renderer=True,  # Show GUI during training
+            has_renderer=False,  # Show GUI during training
             has_offscreen_renderer=False, # used for camera obsm if true, then we use camera images for training
             use_camera_obs=False,  # No images = faster
             horizon=100,  # Shorter episodes for faster training
@@ -126,6 +159,9 @@ def train():
     print("Starting training...")
     print("This will take a while on CPU. Press Ctrl+C to stop early.")
     print("-" * 50)
+
+    # Create callbacks
+    stats_callback = PolicyStatsCallback(print_freq=512)
 
     try:
         # Train for a modest number of steps (increase for better results)
