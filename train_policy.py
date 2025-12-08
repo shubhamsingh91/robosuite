@@ -267,9 +267,25 @@ class RobosuiteGymEnv(gym.Env):
         obs_dict, reward, done, info = self.env.step(action)
         obs = self._get_obs(obs_dict)
 
-        # Check for success
+        # Manually check success since robosuite doesn't populate info dict
+        success = self.env._check_success()
+        info["success"] = success
+
+        # Add lifting reward: bonus for cube height above table
+        cube_height = obs_dict["cube_pos"][2]
+        table_height = 0.8
+        lift_height = cube_height - table_height
+        if lift_height > 0.01:  # Cube lifted at least 1cm
+            reward += lift_height * 10.0  # Reward proportional to height
+
+        # If success, terminate early with done=True
+        if success:
+            done = True
+            reward += 50.0  # Large bonus reward for success
+
+        # Handle truncation (horizon reached without success)
         truncated = False
-        if done and not info.get("success", False):
+        if done and not success:
             truncated = True
             done = False
 
